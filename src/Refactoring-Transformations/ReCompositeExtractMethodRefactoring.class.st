@@ -36,28 +36,9 @@ Class {
 	#tag : 'Model-Unused'
 }
 
-{ #category : 'utilities' }
-ReCompositeExtractMethodRefactoring class >> allMethodsInHierarchyOf: aRBClass [
-
-	^ ((aRBClass
-		withAllSuperclassesUntil: Object)
-		flatCollect: [ :class | class allMethods collect: [:each | each method] ])
-		reject: #isNil
-]
-
-{ #category : 'api' }
-ReCompositeExtractMethodRefactoring class >> extract: aString from: aSelector to: aNewSelector in: aClassName [
-
-	^ self new
-		extract: aString
-		from: aSelector
-		to: aNewSelector
-		in: aClassName;
-		yourself
-]
-
 { #category : 'api' }
 ReCompositeExtractMethodRefactoring class >> extractInterval: anInterval from: aSelector to: aNewSelector in: aClassName [
+	"Use this API because intervals disambiguate expression that appears twice in a method."
 
 	^ self new
 		extractInterval: anInterval
@@ -67,12 +48,13 @@ ReCompositeExtractMethodRefactoring class >> extractInterval: anInterval from: a
 		yourself
 ]
 
-{ #category : 'api' }
-ReCompositeExtractMethodRefactoring class >> model: aRBModel extract: aString from: aSelector to: aNewSelector in: aClassName [
+{ #category : 'testing - api' }
+ReCompositeExtractMethodRefactoring class >> extractSource: aString from: aSelector to: aNewSelector in: aClassName [
+	"This API is for testing purposes only. If you use it and there are two similar expressions
+	(selection) in the method, the first one will be extracted every time."
 
 	^ self new
-		model: aRBModel;
-		extract: aString
+		extractSource: aString
 		from: aSelector
 		to: aNewSelector
 		in: aClassName;
@@ -81,10 +63,25 @@ ReCompositeExtractMethodRefactoring class >> model: aRBModel extract: aString fr
 
 { #category : 'api' }
 ReCompositeExtractMethodRefactoring class >> model: aRBModel extractInterval: anInterval from: aSelector to: aNewSelector in: aClassName [
+	"Use this API because intervals disambiguate expression that appears twice in a method."
 
 	^ self new
 		model: aRBModel;
 		extractInterval: anInterval
+		from: aSelector
+		to: aNewSelector
+		in: aClassName;
+		yourself
+]
+
+{ #category : 'testing - api' }
+ReCompositeExtractMethodRefactoring class >> model: aRBModel extractSource: aString from: aSelector to: aNewSelector in: aClassName [
+	"This API is for testing purposes only. If you use it and there are two similar expressions
+	(selection) in the method, the first one will be extracted every time."
+
+	^ self new
+		model: aRBModel;
+		extractSource: aString
 		from: aSelector
 		to: aNewSelector
 		in: aClassName;
@@ -107,12 +104,13 @@ ReCompositeExtractMethodRefactoring >> addReturnIfNeeded: newMethodNode [
 { #category : 'preconditions' }
 ReCompositeExtractMethodRefactoring >> applicabilityPreconditions [
 
-	^ self preconditionParsableSubtree
-	  & self preconditionNotInCascadedMessage
-	  & self preconditionTemporariesAreNotReadBeforeWritten
-	  & self preconditionOneAssignmentMaximum
-	  & self preconditionAssignmentsNotReadBeforeWritten
-	  & self preconditionSubtreeDoesNotContainsReturn
+	^ {
+		  self preconditionParsableSubtree.
+		  self preconditionNotInCascadedMessage.
+		  self preconditionTemporariesAreNotReadBeforeWritten.
+		  self preconditionOneAssignmentMaximum.
+		  self preconditionAssignmentsNotReadBeforeWritten.
+		  self preconditionSubtreeDoesNotContainsReturn }
 ]
 
 { #category : 'accessing' }
@@ -123,7 +121,7 @@ ReCompositeExtractMethodRefactoring >> arguments [
 { #category : 'preconditions' }
 ReCompositeExtractMethodRefactoring >> breakingChangePreconditions [ 
 
-	  ^ self preconditionHasSameExitPoint 
+	^ { self preconditionHasSameExitPoint }
 ]
 
 { #category : 'executing' }
@@ -245,10 +243,11 @@ ReCompositeExtractMethodRefactoring >> calculateTemporaries [
 { #category : 'scripting api - conditions' }
 ReCompositeExtractMethodRefactoring >> checkPreconditions [
 
-	super checkPreconditions.
-	self breakingChangePreconditions check ifFalse: [
-		self refactoringWarning:
-			self breakingChangePreconditions errorString ]
+	| failedPreconditions |
+	self eagerlyCheckApplicabilityPreconditions.
+	failedPreconditions := self breakingChangePreconditions reject: [ :cond | cond check ].
+	failedPreconditions ifEmpty: [ ^ self ].
+	RBRefactoringWarning signalFor: failedPreconditions
 ]
 
 { #category : 'instance creation' }
@@ -258,14 +257,6 @@ ReCompositeExtractMethodRefactoring >> extract: aString from: aSelector in: aCla
 	class := self model classNamed: aClassName.
 	selector := aSelector.
 	sourceCode := aString
-]
-
-{ #category : 'api' }
-ReCompositeExtractMethodRefactoring >> extract: aString from: aSelector to: aNewSelector in: aClassName [
-	
-	self extract: aString from: aSelector in: aClassName.
-	newSelector := aNewSelector.
-	
 ]
 
 { #category : 'instance creation' }
@@ -281,6 +272,14 @@ ReCompositeExtractMethodRefactoring >> extractInterval: anInterval from: aSelect
 ReCompositeExtractMethodRefactoring >> extractInterval: anInterval from: aSelector to: aNewSelector in: aClassName [
 	
 	self extractInterval: anInterval from: aSelector in: aClassName.
+	newSelector := aNewSelector.
+	
+]
+
+{ #category : 'api' }
+ReCompositeExtractMethodRefactoring >> extractSource: aString from: aSelector to: aNewSelector in: aClassName [
+	
+	self extract: aString from: aSelector in: aClassName.
 	newSelector := aNewSelector.
 	
 ]
